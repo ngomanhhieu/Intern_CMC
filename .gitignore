@@ -1,0 +1,15 @@
+.vs/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+ipch/
+*.aps
+*.user
+*.pdb
+*.ilk
+*.obj
+*.pch
+*.idb
+*.tlog
+*.log
