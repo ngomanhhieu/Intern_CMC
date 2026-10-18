@@ -15,6 +15,11 @@
 
 Service mở cổng TCP 9999 và gửi trả lại cho client mọi byte mà client gửi lên. Mỗi client chạy trên một thread riêng.
 
+### Chạy trong Visual Studio
+Mở `EchoService.slnx` rồi bấm **F5**. Server chạy luôn trong cửa sổ console, không cần cài service, và đặt breakpoint được.
+Gõ `q` rồi Enter để dừng. Lệnh dừng đi qua đúng đường stop của service.
+
+### Chạy dưới dạng Windows service thật
 Mở cmd **bằng quyền Administrator** rồi chạy:
 
 ```
@@ -23,8 +28,9 @@ sc start CMCEchoService       :: chạy service
 sc query CMCEchoService       :: xem trạng thái
 sc stop  CMCEchoService       :: dừng service
 EchoService.exe uninstall     :: dừng (nếu đang chạy) rồi xoá service
-EchoService.exe console       :: chạy như app console để debug, Ctrl+C để dừng
 ```
+
+Chỉ cần `install` một lần. Muốn build lại thì `sc stop` trước, vì exe đang chạy sẽ bị khoá file. Build xong thì `sc start` lại.
 
 Test bằng client: `powershell -ExecutionPolicy Bypass -File test_echo.ps1`
 (nếu chạy ở máy khác thì thêm `-Server <IP>` và mở firewall cho cổng 9999).

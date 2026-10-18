@@ -1,11 +1,13 @@
 // EchoService.cpp : Windows service mo TCP cong 9999, gui tra lai (echo) moi du lieu client gui len.
 //
-// Cach dung (cmd chay quyen Administrator):
+// Chay trong Visual Studio: bam F5 -> tu chay o che do console (khong can cai service),
+// go q + Enter de dung. Cung mot code server voi khi chay that duoi dang service.
+//
+// Chay that duoi dang service (cmd chay quyen Administrator):
 //   EchoService.exe install     -> dang ky service voi SCM
 //   sc start CMCEchoService     -> chay service
 //   sc stop  CMCEchoService     -> dung service (dung ngay, khong treo)
 //   EchoService.exe uninstall   -> dung (neu dang chay) va xoa service
-//   EchoService.exe console     -> chay nhu app console de debug, Ctrl+C de dung
 //
 // Log ghi ra file EchoService.log canh file exe (service khong co cua so console).
 
@@ -276,25 +278,16 @@ static DWORD WINAPI CtrlHandler(DWORD ctrl, DWORD, LPVOID, LPVOID)
 	return ERROR_CALL_NOT_IMPLEMENTED;
 }
 
-// Phan chay chung cho ca che do service va console
+// Phan chay chung cho ca che do service va console (g_stopEvent da duoc tao o wmain)
 static DWORD RunServer()
 {
-	g_stopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-	if (!g_stopEvent) return GetLastError();
-
 	if (!StartServer())
-	{
-		CloseHandle(g_stopEvent);
-		g_stopEvent = NULL;
 		return ERROR_NETWORK_UNREACHABLE;
-	}
 
 	ReportStatus(SERVICE_RUNNING, NO_ERROR, 0);
 	WaitForSingleObject(g_stopEvent, INFINITE);
 
 	StopServer();
-	CloseHandle(g_stopEvent);
-	g_stopEvent = NULL;
 	return NO_ERROR;
 }
 
@@ -312,8 +305,39 @@ static void WINAPI ServiceMain(DWORD, LPWSTR*)
 // Ctrl+C / dong cua so console -> dung server giong nhu lenh stop cua SCM
 static BOOL WINAPI ConsoleHandler(DWORD)
 {
-	if (g_stopEvent) SetEvent(g_stopEvent);
+	SetEvent(g_stopEvent);
 	return TRUE;
+}
+
+// Che do console: bam F5 trong Visual Studio la chay duoc, debug duoc, khong can cai service.
+// Go q + Enter (hoac Ctrl+C, hoac dong cua so) -> dung server theo dung duong stop cua service.
+static int RunConsole()
+{
+	g_consoleMode = true;
+	SetConsoleCtrlHandler(ConsoleHandler, TRUE);
+	printf("Chay o che do console. Go q + Enter de dung server.\n");
+
+	std::thread([] {
+		char line[64];
+		while (fgets(line, sizeof(line), stdin))
+		{
+			// Bo qua BOM UTF-8 (EF BB BF) va khoang trang o dau dong
+			const unsigned char* p = (const unsigned char*)line;
+			if (p[0] == 0xEF && p[1] == 0xBB && p[2] == 0xBF) p += 3;
+			while (*p == ' ' || *p == '\t') p++;
+			if (*p == 'q' || *p == 'Q')
+			{
+				Log("Nhan lenh dung tu ban phim");
+				SetEvent(g_stopEvent);
+				return;
+			}
+		}
+	}).detach();
+
+	DWORD err = RunServer();
+	if (err != NO_ERROR)
+		printf("Khong chay duoc server (cong %d dang bi chiem? service co dang chay khong?)\n", ECHO_PORT);
+	return (int)err;
 }
 
 // ---------------------------------------------------------------------------
@@ -394,26 +418,29 @@ int wmain(int argc, wchar_t* argv[])
 	{
 		if (_wcsicmp(argv[1], L"install") == 0)   return InstallService();
 		if (_wcsicmp(argv[1], L"uninstall") == 0) return UninstallService();
-		if (_wcsicmp(argv[1], L"console") == 0)
-		{
-			g_consoleMode = true;
-			SetConsoleCtrlHandler(ConsoleHandler, TRUE);
-			printf("Chay o che do console, Ctrl+C de dung\n");
-			return (int)RunServer();
-		}
+	}
+
+	// Event bao dung, dung chung cho ca service (SCM stop) va console (q / Ctrl+C)
+	g_stopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+	if (!g_stopEvent) return 1;
+
+	if (argc > 1)
+	{
+		if (_wcsicmp(argv[1], L"console") == 0) return RunConsole();
 		printf("Tham so: install | uninstall | console\n");
 		return 1;
 	}
 
-	// Khong co tham so: duoc SCM goi -> vao che do service
+	// Khong co tham so: thu ket noi voi SCM de chay nhu service
 	SERVICE_TABLE_ENTRYW table[] = {
 		{ (LPWSTR)SERVICE_NAME, ServiceMain },
 		{ NULL, NULL }
 	};
 	if (!StartServiceCtrlDispatcherW(table))
 	{
+		// Khong phai SCM goi (vd bam F5 trong Visual Studio) -> chay o che do console
 		if (GetLastError() == ERROR_FAILED_SERVICE_CONTROLLER_CONNECT)
-			printf("Day la Windows service. Tham so: install | uninstall | console\n");
+			return RunConsole();
 		return 1;
 	}
 	return 0;
