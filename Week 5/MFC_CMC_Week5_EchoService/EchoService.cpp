@@ -229,9 +229,9 @@ static void StopServer()
 	Log("Da dung server%s", allDone ? "" : " (con client thread chua thoat kip)");
 }
 
-// ---------------------------------------------------------------------------
+
 // Windows service
-// ---------------------------------------------------------------------------
+
 static SERVICE_STATUS g_status = {};
 static SERVICE_STATUS_HANDLE g_statusHandle = NULL;
 static HANDLE g_stopEvent = NULL;
